@@ -1,0 +1,28 @@
+{
+  "name": "cms10/data-visual",
+  "description": "To convert data into visual documents, charts, pictures, etc",
+  "type": "library",
+  "license": "MIT",
+  "keywords": [
+    "graphics",
+    "imagick",
+    "chart"
+  ],
+  "autoload": {
+    "psr-4": {
+      "cms10\\DataVisual\\": "src/"
+    }
+  },
+  "authors": [
+    {
+      "name": "PeterShen",
+      "email": "syx007-1@163.com",
+      "homepage": "https://github.com/10cms"
+    }
+  ],
+  "require": {
+    "ext-imagick": "*",
+    "ext-mbstring": "*",
+    "ext-iconv": "*"
+  }
+}
