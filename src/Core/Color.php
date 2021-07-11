@@ -8,7 +8,6 @@ use ImagickPixelException;
 
 /**
  * Utility class for storing colours in a library-agnostic Format.
- * @package PieChart
  */
 class Color
 {

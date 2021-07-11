@@ -25,7 +25,14 @@ $rows = [
 ];
 $imagePath = '1.jpeg';
 
-$table = new Table(800, 600);
+$table = new Table(800, 600, [
+    'backcolor' => 0xeeeeee,
+    'tableMargin' => [30],
+    'columnPadding' => [10],
+    'rowPadding' => [10],
+    'columnFontSize' => 20,
+    'rowFontSize' => 16,
+]);
 
 $table->setColumns($cols);
 $table->setRows($rows);

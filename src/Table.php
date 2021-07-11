@@ -2,6 +2,7 @@
 
 namespace cms10\DataVisual;
 
+use cms10\DataVisual\Core\Box;
 use cms10\DataVisual\Core\Color;
 use cms10\DataVisual\Format\JPEGFormat;
 use Imagick;
@@ -16,22 +17,43 @@ use ImagickPixelException;
  */
 class Table extends Graph implements TableInterface
 {
+    protected int $x;
+    protected int $y;
+    protected int $width;
+    protected int $height;
+
     protected array $columns;
-    protected array $columnWidth;
     protected array $rows;
 
-    protected string $columnFont;
-    protected string $columnFontSize;
+    protected array $columnWidths;
+
+    protected int $headerBaseline;
+    protected int $headerTextHeight;
+
+    protected int $rowBaseline;
+    protected int $rowTextHeight;
+
+    protected string $headerFont;
+    protected string $headerFontSize;
     protected string $rowFont;
     protected string $rowFontSize;
 
-    protected Color $columnColor;
-    protected Color $columnBackcolor;
+    protected Color $headerColor;
+    protected Color $headerBackcolor;
+    protected Color $rowColor;
     protected Color $rowBackcolor;
     protected Color $borderColor;
     protected Color $textColor;
 
-    protected int $borderSize;
+    protected float $borderWidth;
+
+    protected Box $headerPadding;
+    protected Box $rowPadding;
+    protected Box $tableMargin;
+
+    protected ImagickDraw $headerDraw;
+    protected ImagickDraw $rowDraw;
+
 
     /**
      * Constructs the Table.
@@ -43,31 +65,108 @@ class Table extends Graph implements TableInterface
     {
         parent::__construct($width, $height, $options);
 
-        $this->columnColor = new Color($options['textColor'] ?? 0x606e86);
-        $this->columnBackcolor = new Color($options['columnBackcolor'] ?? 0xf6f8fb);
+        $this->x = $options['x'] ?? 0;
+        $this->y = $options['y'] ?? 0;
+
+        $this->headerBaseline = 0;
+        $this->rowBaseline = 0;
+
+        $this->headerTextHeight = 0;
+        $this->rowTextHeight = 0;
+
+        $this->headerColor = new Color($options['textColor'] ?? 0x606e86);
+        $this->headerBackcolor = new Color($options['columnBackcolor'] ?? 0xf6f8fb);
+        $this->rowColor = new Color($options['rowColor'] ?? 0x222222);
         $this->rowBackcolor = new Color($options['rowBackcolor'] ?? 0xffffff);
         $this->borderColor = new Color($options['rowBackcolor'] ?? 0xcccccc);
         $this->textColor = new Color($options['textColor'] ?? 0x222222);
 
-        $this->borderSize = $options['borderSize'] ?? 0;
+        $this->headerFont = __DIR__ . '/fonts/msyhbd.ttc';
+        $this->rowFont = __DIR__ . '/fonts/msyh.ttc';
 
-        $this->columnFont = __DIR__ . '/fonts/msyhbd.ttc';
-        $this->rowFont = __DIR__ . '/fonts/Open_Sans/OpenSans-Regular.ttf';
-
-        $this->columnFontSize = $options['columnFontSize'] ?? 16;
+        $this->headerFontSize = $options['columnFontSize'] ?? 16;
         $this->rowFontSize = $options['rowFontSize'] ?? 12;
+
+        $this->borderWidth = $options['borderSize'] ?? 0;
+        $this->headerPadding = new Box($options['columnPadding'] ?? [0, 0, 0, 0]);
+        $this->rowPadding = new Box($options['rowPadding'] ?? [0, 0, 0, 0]);
+        $this->tableMargin = new Box($options['tableMargin'] ?? [0, 0, 0, 0]);
+
+        $this->headerDraw = new ImagickDraw();
+        $this->rowDraw = new ImagickDraw();
     }
 
+    /**
+     * @throws ImagickException
+     * @throws ImagickDrawException
+     * @throws ImagickPixelException
+     */
     public function setColumns(array $columns): TableInterface
     {
+        $this->headerDraw->setFillColor($this->headerColor->toImagickPixel());
+        $this->headerDraw->setFont($this->headerFont);
+        $this->headerDraw->setFontSize($this->headerFontSize);
+        $this->headerDraw->setGravity(Imagick::GRAVITY_NORTH);
+        $this->headerDraw->setTextAlignment(Imagick::ALIGN_LEFT);
+
         $this->columns = $columns;
+        foreach ($this->columns as $k => $column) {
+            // Measure the text.
+            $metrics = $this->canvas->queryFontMetrics($this->headerDraw, $column);
+
+            if ($this->headerBaseline < $metrics['boundingBox']['y2']) {
+                $this->headerBaseline = $metrics['boundingBox']['y2'];
+            }
+            if ($this->headerTextHeight < $metrics['textHeight'] + $metrics['descender']) {
+                $this->headerTextHeight = $metrics['textHeight'] + $metrics['descender'];
+            }
+
+            $x = $metrics['textWidth'] + $this->headerPadding->right + $this->headerPadding->left;
+            if (empty($this->columnWidths[$k]) || $this->columnWidths[$k] < $x) {
+                $this->columnWidths[$k] = $x;
+            }
+        }
 
         return $this;
     }
 
+    /**
+     * @throws ImagickException
+     * @throws ImagickDrawException
+     * @throws ImagickPixelException
+     */
     public function setRows(array $rows): TableInterface
     {
+        $this->rowDraw->setFillColor($this->rowColor->toImagickPixel());
+        $this->rowDraw->setFont($this->rowFont);
+        $this->rowDraw->setFontSize($this->rowFontSize);
+//        $this->rowDraw->setGravity(Imagick::GRAVITY_NORTH);
+        $this->rowDraw->setTextAlignment(Imagick::ALIGN_LEFT);
+
         $this->rows = $rows;
+        foreach ($this->rows as $row) {
+            foreach ($row as $k => $item) {
+                if (is_array($item)) {
+                    $text = $item['value'];
+                } else {
+                    $text = $item;
+                }
+                // Measure the text.
+                $metrics = $this->canvas->queryFontMetrics($this->rowDraw, $text);
+
+                if ($this->rowBaseline < $metrics['boundingBox']['y2']) {
+                    $this->rowBaseline = $metrics['boundingBox']['y2'];
+                }
+                if ($this->rowTextHeight < $metrics['textHeight'] + $metrics['descender']) {
+                    $this->rowTextHeight = $metrics['textHeight'] + $metrics['descender'];
+                }
+
+                $x = $metrics['textWidth'] + $this->rowPadding->right + $this->rowPadding->left;
+                if (empty($this->columnWidths[$k]) || $this->columnWidths[$k] < $x) {
+                    $this->columnWidths[$k] = $x;
+                }
+            }
+        }
 
         return $this;
     }
@@ -115,13 +214,21 @@ class Table extends Graph implements TableInterface
 
     /**
      * @throws ImagickException
-     * @throws ImagickPixelException
+     * @throws ImagickPixelException|ImagickDrawException
      */
     public function draw(): Table
     {
-        $this->canvas->newImage($this->width, $this->height, $this->backcolor->toImagickPixel());
+        $height = $this->tableMargin->top + $this->tableMargin->bottom;
+        $width = $this->tableMargin->left + $this->tableMargin->right;
+        foreach ($this->columnWidths as $w) {
+            $width += $w;
+        }
+        $height += $this->headerPadding->top + $this->headerTextHeight + $this->headerPadding->bottom;
+        $height += count($this->rows) * ($this->rowPadding->top + $this->rowTextHeight + $this->rowPadding->bottom);
 
-        $this->_drawColumn();
+        $this->canvas->newImage($width, $height, $this->backcolor->toImagickPixel());
+
+        $this->_drawHeader();
         $this->_drawRows();
 
         return $this;
@@ -146,49 +253,62 @@ class Table extends Graph implements TableInterface
     /**
      * @throws ImagickException
      * @throws ImagickDrawException
-     * @throws ImagickPixelException
      */
-    private function _drawColumn()
+    private function _drawHeader()
     {
-        $draw = new ImagickDraw();
+        $x = $this->x + $this->tableMargin->left;
+        $this->x = $x;
 
-        $draw->setFillColor($this->columnColor->toImagickPixel());
-        $draw->setFont($this->columnFont);
-        $draw->setTextEncoding('UTF-8');
-        $draw->setFontSize( $this->columnFontSize);
-        $draw->setGravity(Imagick::GRAVITY_NORTH);
-        $draw->setTextAlignment (Imagick::ALIGN_LEFT);
+        $y = $this->y + $this->tableMargin->top;
+        foreach ($this->columns as $k => $column) {
+            $this->headerDraw->annotation($x + $this->headerPadding->left, $y + $this->headerPadding->top + $this->headerBaseline, $column);
 
-        $x = 10;
-        $y = 10;
-        foreach ($this->columns as $column) {
-            echo $column;
-            // Measure the text.
-            $metrics = $this->canvas->queryFontMetrics($draw, $column);
-
-            $baseline = $metrics['boundingBox']['y2'];
-//            $textWidth = $metrics['textWidth'] + 2 * $metrics['boundingBox']['x1'];
-//            $textHeight = $metrics['textHeight'] + $metrics['descender'];
-//            $draw->annotation (0, $baseline, $column);
-            $textWidth = $metrics['textWidth'];
-            $this->columnWidth[$column] = $metrics['textWidth'];
-
-
-            echo $draw->annotation($x, $baseline + 20, $column);
-
-            $x += $textWidth + 10;
+            $x += $this->columnWidths[$k];
         }
-
-//        $draw->setFillColor($this->columnBackcolor->toImagickPixel());
-//        $draw->rectangle(10,10,790, 590);
-
-        $this->canvas->drawImage($draw);
-
-        $draw->clear();
+        $this->canvas->drawImage($this->headerDraw);
+        $this->y = $y + $this->headerPadding->top + $this->headerTextHeight + $this->headerPadding->bottom;
+        $this->headerDraw->clear();
     }
 
+    /**
+     * @throws ImagickException
+     * @throws ImagickDrawException
+     * @throws ImagickPixelException
+     */
     private function _drawRows()
     {
-        // todo
+        $y = $this->y;
+        foreach ($this->rows as $row) {
+            $x = $this->x;
+
+            foreach ($row as $k => $item) {
+                if (is_array($item)) {
+                    $this->_drawItem($x, $y, $item, $this->columnWidths[$k]);
+                } else {
+                    $this->rowDraw->annotation($x + $this->rowPadding->left, $y + $this->rowPadding->top + $this->rowBaseline, $item);
+                }
+
+                $x += $this->columnWidths[$k];
+            }
+            $y += $this->rowPadding->top + $this->rowTextHeight + $this->rowPadding->bottom;
+        }
+
+        $this->canvas->drawImage($this->rowDraw);
+        $this->rowDraw->clear();
+    }
+
+    /**
+     * @throws ImagickDrawException
+     */
+    private function _drawItem(int $x, int $y, array $item, int $width)
+    {
+        if (!empty($item['background_color'])) {
+            $this->rowDraw->setFillColor($item['background_color']);
+            $this->rowDraw->rectangle($x, $y, $x + $width, $y + $this->rowTextHeight + $this->rowPadding->top + $this->rowPadding->bottom);
+        }
+        if (!empty($item['font_color'])) {
+            $this->rowDraw->setFillColor($item['font_color']);
+        }
+        $this->rowDraw->annotation($x + $this->rowPadding->top, $y + $this->rowPadding->top + $this->rowBaseline, $item['value']);
     }
 }
