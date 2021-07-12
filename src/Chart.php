@@ -24,13 +24,13 @@ abstract class Chart extends Graph implements ChartInterface
 
     /**
      * Constructs the Chart.
-     * @param int $width The width of the chart, in pixels.
-     * @param int $height The chart's height, in pixels.
+     * @param int $minWidth The width of the chart, in pixels.
+     * @param int $minHeight The chart's height, in pixels.
      * @param array $options
      */
-    public function __construct(int $width = 100, int $height = 100, array $options = [])
+    public function __construct(int $minWidth = 100, int $minHeight = 100, array $options = [])
     {
-        parent::__construct($width, $height, $options);
+        parent::__construct($minWidth, $minHeight, $options);
 
         $this->title = $options['title'] ?? '';
         $this->hasLegend = true;

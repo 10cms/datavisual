@@ -9,9 +9,9 @@ use Imagick;
 
 abstract class Graph
 {
-    protected int $width;
+    protected int $canvasWidth;
 
-    protected int $height;
+    protected int $canvasHeight;
 
     protected Color $backcolor;
 
@@ -19,10 +19,10 @@ abstract class Graph
 
     public int $quality;
 
-    public function __construct(int $width = 100, int $height = 100, array $options = [])
+    public function __construct(int $minWidth = 100, int $minHeight = 100, array $options = [])
     {
-        $this->width = $width;
-        $this->height = $height;
+        $this->canvasWidth = $minWidth;
+        $this->canvasHeight = $minHeight;
         $this->quality = 100;
         $this->backcolor = new Color($options['backcolor'] ?? 0xffffff);
 

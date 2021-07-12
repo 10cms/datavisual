@@ -19,8 +19,9 @@ class Table extends Graph implements TableInterface
 {
     protected int $x;
     protected int $y;
-    protected int $width;
-    protected int $height;
+
+    protected int $tableWidth;
+    protected int $tableHeight;
 
     protected array $columns;
     protected array $rows;
@@ -45,8 +46,12 @@ class Table extends Graph implements TableInterface
     protected Color $borderColor;
     protected Color $textColor;
 
-    protected float $borderWidth;
+    protected int $verticalLineWidth;
+    protected int $horizontalLineWidth;
+    protected Color $verticalLineColor;
+    protected Color $horizontalLineColor;
 
+    protected Box $tableBorder;
     protected Box $headerPadding;
     protected Box $rowPadding;
     protected Box $tableMargin;
@@ -57,13 +62,13 @@ class Table extends Graph implements TableInterface
 
     /**
      * Constructs the Table.
-     * @param int $width The width of the Table, in pixels.
-     * @param int $height The Table's height, in pixels.
+     * @param int $minWidth The width of the Table, in pixels.
+     * @param int $minHeight The Table's height, in pixels.
      * @param array $options
      */
-    public function __construct(int $width = 100, int $height = 100, array $options = [])
+    public function __construct(int $minWidth = 100, int $minHeight = 100, array $options = [])
     {
-        parent::__construct($width, $height, $options);
+        parent::__construct($minWidth, $minHeight, $options);
 
         $this->x = $options['x'] ?? 0;
         $this->y = $options['y'] ?? 0;
@@ -75,10 +80,10 @@ class Table extends Graph implements TableInterface
         $this->rowTextHeight = 0;
 
         $this->headerColor = new Color($options['textColor'] ?? 0x606e86);
-        $this->headerBackcolor = new Color($options['columnBackcolor'] ?? 0xf6f8fb);
+        $this->headerBackcolor = new Color($options['columnBackcolor'] ?? 0xeeeeee);
         $this->rowColor = new Color($options['rowColor'] ?? 0x222222);
         $this->rowBackcolor = new Color($options['rowBackcolor'] ?? 0xffffff);
-        $this->borderColor = new Color($options['rowBackcolor'] ?? 0xcccccc);
+        $this->borderColor = new Color($options['rowBackcolor'] ?? 0x999999);
         $this->textColor = new Color($options['textColor'] ?? 0x222222);
 
         $this->headerFont = __DIR__ . '/fonts/msyhbd.ttc';
@@ -87,8 +92,13 @@ class Table extends Graph implements TableInterface
         $this->headerFontSize = $options['columnFontSize'] ?? 16;
         $this->rowFontSize = $options['rowFontSize'] ?? 12;
 
-        $this->borderWidth = $options['borderSize'] ?? 0;
-        $this->headerPadding = new Box($options['columnPadding'] ?? [0, 0, 0, 0]);
+        $this->verticalLineWidth = $options['verticalLineWidth'] ?? 1;
+        $this->horizontalLineWidth = $options['horizontalLineWidth'] ?? 1;
+        $this->verticalLineColor = new Color($options['textColor'] ?? 0xcccccc);
+        $this->horizontalLineColor = new Color($options['horizontalLineColor'] ?? 0xcccccc);
+
+        $this->tableBorder = new Box($options['tableBorder'] ?? [1]);
+        $this->headerPadding = new Box($options['headerPadding'] ?? [0, 0, 0, 0]);
         $this->rowPadding = new Box($options['rowPadding'] ?? [0, 0, 0, 0]);
         $this->tableMargin = new Box($options['tableMargin'] ?? [0, 0, 0, 0]);
 
@@ -103,7 +113,6 @@ class Table extends Graph implements TableInterface
      */
     public function setColumns(array $columns): TableInterface
     {
-        $this->headerDraw->setFillColor($this->headerColor->toImagickPixel());
         $this->headerDraw->setFont($this->headerFont);
         $this->headerDraw->setFontSize($this->headerFontSize);
         $this->headerDraw->setGravity(Imagick::GRAVITY_NORTH);
@@ -121,9 +130,9 @@ class Table extends Graph implements TableInterface
                 $this->headerTextHeight = $metrics['textHeight'] + $metrics['descender'];
             }
 
-            $x = $metrics['textWidth'] + $this->headerPadding->right + $this->headerPadding->left;
-            if (empty($this->columnWidths[$k]) || $this->columnWidths[$k] < $x) {
-                $this->columnWidths[$k] = $x;
+            $width = $metrics['textWidth'] + $this->headerPadding->right + $this->headerPadding->left;
+            if (empty($this->columnWidths[$k]) || $this->columnWidths[$k] < $width) {
+                $this->columnWidths[$k] = $width;
             }
         }
 
@@ -140,7 +149,6 @@ class Table extends Graph implements TableInterface
         $this->rowDraw->setFillColor($this->rowColor->toImagickPixel());
         $this->rowDraw->setFont($this->rowFont);
         $this->rowDraw->setFontSize($this->rowFontSize);
-//        $this->rowDraw->setGravity(Imagick::GRAVITY_NORTH);
         $this->rowDraw->setTextAlignment(Imagick::ALIGN_LEFT);
 
         $this->rows = $rows;
@@ -161,9 +169,9 @@ class Table extends Graph implements TableInterface
                     $this->rowTextHeight = $metrics['textHeight'] + $metrics['descender'];
                 }
 
-                $x = $metrics['textWidth'] + $this->rowPadding->right + $this->rowPadding->left;
-                if (empty($this->columnWidths[$k]) || $this->columnWidths[$k] < $x) {
-                    $this->columnWidths[$k] = $x;
+                $width = $metrics['textWidth'] + $this->rowPadding->right + $this->rowPadding->left;
+                if (empty($this->columnWidths[$k]) || $this->columnWidths[$k] < $width) {
+                    $this->columnWidths[$k] = $width;
                 }
             }
         }
@@ -218,19 +226,30 @@ class Table extends Graph implements TableInterface
      */
     public function draw(): Table
     {
-        $height = $this->tableMargin->top + $this->tableMargin->bottom;
-        $width = $this->tableMargin->left + $this->tableMargin->right;
-        foreach ($this->columnWidths as $w) {
-            $width += $w;
+        // calculate table's width and height.
+        $this->tableWidth = $this->tableMargin->left + $this->tableMargin->right + $this->tableBorder->left + $this->tableBorder->right;
+        $this->tableWidth += array_sum($this->columnWidths);
+        $this->tableWidth += (count($this->columnWidths) - 1) * $this->verticalLineWidth;
+        if ($this->canvasWidth < $this->tableWidth) {
+            $this->canvasWidth = $this->tableWidth;
         }
-        $height += $this->headerPadding->top + $this->headerTextHeight + $this->headerPadding->bottom;
-        $height += count($this->rows) * ($this->rowPadding->top + $this->rowTextHeight + $this->rowPadding->bottom);
 
-        $this->canvas->newImage($width, $height, $this->backcolor->toImagickPixel());
+        $this->tableHeight = $this->tableMargin->top + $this->tableMargin->bottom + $this->tableBorder->top + $this->tableBorder->bottom;
+        $this->tableHeight += $this->headerPadding->top + $this->headerTextHeight + $this->headerPadding->bottom;
+        $rowCount = count($this->rows);
+        $this->tableHeight += $rowCount * ($this->rowPadding->top + $this->rowTextHeight + $this->rowPadding->bottom);
+        $this->tableHeight += ($rowCount - 1) * $this->horizontalLineWidth;
+        if ($this->canvasHeight < $this->tableHeight) {
+            $this->canvasHeight = $this->tableHeight;
+        }
 
+        $this->canvas->newImage($this->canvasWidth, $this->canvasHeight, $this->backcolor->toImagickPixel());
+
+        $this->_drawBorder();
         $this->_drawHeader();
         $this->_drawRows();
-
+        $this->_drawVerticalLine();
+        $this->_drawHorizontalLine();
         return $this;
     }
 
@@ -252,22 +271,54 @@ class Table extends Graph implements TableInterface
 
     /**
      * @throws ImagickException
+     * @throws ImagickPixelException
      * @throws ImagickDrawException
+     */
+    private function _drawBorder()
+    {
+        $borderDraw = new ImagickDraw();
+        $borderDraw->setFillColor($this->borderColor->toImagickPixel());
+        for ($x = $this->x + $this->tableMargin->left; $x < $this->x + $this->tableWidth - $this->tableMargin->right; $x++) {
+            for ($lineHeight = 0; $lineHeight < $this->tableBorder->top; $lineHeight++) {
+                $borderDraw->color($x, $this->y + $this->tableMargin->top + $lineHeight, Imagick::PAINT_POINT);
+            }
+            for ($lineHeight = 0; $lineHeight < $this->tableBorder->bottom; $lineHeight++) {
+                $borderDraw->color($x, $this->y + $this->tableHeight - $this->tableMargin->bottom - $lineHeight - 1, Imagick::PAINT_POINT);
+            }
+        }
+        for ($y = $this->y + $this->tableMargin->top; $y < $this->y + $this->tableHeight - $this->tableMargin->bottom; $y++) {
+            for ($lineWidth = 0; $lineWidth < $this->tableBorder->left; $lineWidth++) {
+                $borderDraw->color($this->x + $this->tableMargin->left + $lineWidth, $y, Imagick::PAINT_POINT);
+            }
+            for ($lineWidth = 0; $lineWidth < $this->tableBorder->bottom; $lineWidth++) {
+                $borderDraw->color($this->x + $this->tableWidth - $this->tableMargin->right - $lineWidth - 1, $y, Imagick::PAINT_POINT);
+            }
+        }
+        $this->canvas->drawImage($borderDraw);
+        $borderDraw->destroy();
+    }
+
+    /**
+     * @throws ImagickException
+     * @throws ImagickDrawException
+     * @throws ImagickPixelException
      */
     private function _drawHeader()
     {
-        $x = $this->x + $this->tableMargin->left;
-        $this->x = $x;
+        $x = $this->x + $this->tableMargin->left + $this->tableBorder->left;
+        $y = $this->y + $this->tableMargin->top + $this->tableBorder->top;
 
-        $y = $this->y + $this->tableMargin->top;
+        $this->headerDraw->setFillColor($this->headerBackcolor->toImagickPixel());
+        $this->headerDraw->rectangle($x, $y, $this->x + $this->tableWidth - $this->tableMargin->right - $this->tableBorder->right - 1, $y + $this->headerTextHeight + $this->headerPadding->top + $this->headerPadding->bottom - 1);
+        $this->headerDraw->setFillColor($this->headerColor->toImagickPixel());
+
         foreach ($this->columns as $k => $column) {
             $this->headerDraw->annotation($x + $this->headerPadding->left, $y + $this->headerPadding->top + $this->headerBaseline, $column);
 
-            $x += $this->columnWidths[$k];
+            $x += $this->columnWidths[$k] + $this->verticalLineWidth;
         }
         $this->canvas->drawImage($this->headerDraw);
-        $this->y = $y + $this->headerPadding->top + $this->headerTextHeight + $this->headerPadding->bottom;
-        $this->headerDraw->clear();
+        $this->headerDraw->destroy();
     }
 
     /**
@@ -277,24 +328,23 @@ class Table extends Graph implements TableInterface
      */
     private function _drawRows()
     {
-        $y = $this->y;
+        $y = $this->y + $this->tableMargin->top + $this->tableBorder->top + $this->headerPadding->top + $this->headerTextHeight + $this->headerPadding->bottom;;
         foreach ($this->rows as $row) {
-            $x = $this->x;
-
+            $x = $this->x + $this->tableMargin->left + $this->tableBorder->left;
             foreach ($row as $k => $item) {
+                $this->rowDraw->setFillColor($this->rowColor->toImagickPixel());
                 if (is_array($item)) {
                     $this->_drawItem($x, $y, $item, $this->columnWidths[$k]);
                 } else {
                     $this->rowDraw->annotation($x + $this->rowPadding->left, $y + $this->rowPadding->top + $this->rowBaseline, $item);
                 }
-
-                $x += $this->columnWidths[$k];
+                $x += $this->columnWidths[$k] + $this->verticalLineWidth;
             }
-            $y += $this->rowPadding->top + $this->rowTextHeight + $this->rowPadding->bottom;
+            $y += $this->rowPadding->top + $this->rowTextHeight + $this->rowPadding->bottom + $this->horizontalLineWidth;
         }
 
         $this->canvas->drawImage($this->rowDraw);
-        $this->rowDraw->clear();
+        $this->rowDraw->destroy();
     }
 
     /**
@@ -304,11 +354,67 @@ class Table extends Graph implements TableInterface
     {
         if (!empty($item['background_color'])) {
             $this->rowDraw->setFillColor($item['background_color']);
-            $this->rowDraw->rectangle($x, $y, $x + $width, $y + $this->rowTextHeight + $this->rowPadding->top + $this->rowPadding->bottom);
+            $this->rowDraw->rectangle($x, $y, $x + $width - 1, $y + $this->rowTextHeight + $this->rowPadding->top + $this->rowPadding->bottom - 1);
         }
         if (!empty($item['font_color'])) {
             $this->rowDraw->setFillColor($item['font_color']);
         }
-        $this->rowDraw->annotation($x + $this->rowPadding->top, $y + $this->rowPadding->top + $this->rowBaseline, $item['value']);
+        $this->rowDraw->annotation($x + $this->rowPadding->left, $y + $this->rowPadding->top + $this->rowBaseline, $item['value']);
     }
+
+    /**
+     * @throws ImagickException
+     * @throws ImagickPixelException
+     * @throws ImagickDrawException
+     */
+    private function _drawVerticalLine()
+    {
+        if ($this->verticalLineWidth > 0) {
+            $lineDraw = new ImagickDraw();
+            $lineDraw->setFillColor($this->verticalLineColor->toImagickPixel());
+            for ($y = $this->y + $this->tableMargin->top + $this->tableBorder->top; $y < $this->y + $this->tableHeight - $this->tableMargin->bottom - $this->tableBorder->bottom; $y++) {
+                $x = $this->x + $this->tableMargin->left + $this->tableBorder->left;
+
+                for ($k = 0; $k < count($this->columnWidths) - 1; $k++) {
+                    $x += $this->columnWidths[$k];
+                    for ($lineWidth = 0; $lineWidth < $this->verticalLineWidth; $lineWidth++) {
+                        $lineDraw->color($x + $lineWidth, $y, Imagick::PAINT_POINT);
+                    }
+                    $x += $this->verticalLineWidth;
+                }
+            }
+            $this->canvas->drawImage($lineDraw);
+            $lineDraw->destroy();
+        }
+    }
+
+    /**
+     * @throws ImagickException
+     * @throws ImagickPixelException
+     * @throws ImagickDrawException
+     */
+    private function _drawHorizontalLine()
+    {
+        if ($this->horizontalLineWidth > 0) {
+            $lineDraw = new ImagickDraw();
+            $lineDraw->setFillColor($this->horizontalLineColor->toImagickPixel());
+            for ($x = $this->x + $this->tableMargin->left + $this->tableBorder->left; $x < $this->x + $this->tableWidth - $this->tableMargin->right - $this->tableBorder->right; $x++) {
+                $y = $this->y + $this->tableMargin->top + $this->tableBorder->top + $this->headerTextHeight + $this->headerPadding->top + $this->headerPadding->bottom;
+                for ($lineWidth = 0; $lineWidth < $this->horizontalLineWidth; $lineWidth++) {
+                    $lineDraw->color($x, $y + $lineWidth, Imagick::PAINT_POINT);
+                }
+
+                for ($k = 0; $k < count($this->rows) - 1; $k++) {
+                    $y += $this->rowTextHeight + $this->rowPadding->top + $this->rowPadding->bottom;
+                    for ($lineWidth = 0; $lineWidth < $this->horizontalLineWidth; $lineWidth++) {
+                        $lineDraw->color($x, $y + $lineWidth, Imagick::PAINT_POINT);
+                    }
+                    $y += $this->horizontalLineWidth;
+                }
+            }
+            $this->canvas->drawImage($lineDraw);
+            $lineDraw->destroy();
+        }
+    }
+
 }

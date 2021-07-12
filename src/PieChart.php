@@ -30,13 +30,13 @@ class PieChart extends Chart
 
     /**
      * Constructs the Chart.
-     * @param int $width The width of the chart, in pixels.
-     * @param int $height The chart's height, in pixels.
+     * @param int $minWidth The width of the chart, in pixels.
+     * @param int $minHeight The chart's height, in pixels.
      * @param array $options
      */
-    public function __construct(int $width = 100, int $height = 100, array $options = [])
+    public function __construct(int $minWidth = 100, int $minHeight = 100, array $options = [])
     {
-        parent::__construct($width, $height, $options);
+        parent::__construct($minWidth, $minHeight, $options);
     }
 
     /**
@@ -45,7 +45,7 @@ class PieChart extends Chart
      */
     public function draw()
     {
-        $this->canvas->newImage($this->width, $this->height, $this->backcolor->toImagickPixel());
+        $this->canvas->newImage($this->canvasWidth, $this->canvasHeight, $this->backcolor->toImagickPixel());
 
         $total = 0;
         $sliceStart = -90;  // Start at 12 o'clock.
@@ -54,14 +54,14 @@ class PieChart extends Chart
         $legendWidth = $this->_drawLegend($titleHeight);
 
         // Account for the space occupied by the legend and its padding.
-        $pieCenterX = ($this->width - $legendWidth) / 2;
+        $pieCenterX = ($this->canvasWidth - $legendWidth) / 2;
 
         // Account for the space occupied by the title.
-        $pieCenterY = $titleHeight + ($this->height - $titleHeight) / 2;
+        $pieCenterY = $titleHeight + ($this->canvasHeight - $titleHeight) / 2;
 
         // Give the pie 7.5% padding on either side.
         $pieDiameter = round(
-            min($this->width - $legendWidth, $this->height - $titleHeight) * 0.85
+            min($this->canvasWidth - $legendWidth, $this->canvasHeight - $titleHeight) * 0.85
         );
 
         $pieRadius = $pieDiameter / 2;
@@ -102,20 +102,20 @@ class PieChart extends Chart
             return 0;
 
         // Determine the ideal font size for the legend text;
-        $legendFontSize = $this->width * 0.0325;
+        $legendFontSize = $this->canvasWidth * 0.0325;
 
         // If the legend's font size is too small, we won't bother drawing it.
         if (ceil($legendFontSize) < 8)
             return 0;
 
         // Calculate the size and padding for the color squares.
-        $squareSize = $this->height * 0.060;
-        $squarePadding = $this->height * 0.025;
-        $labelPadding = $this->height * 0.025;
+        $squareSize = $this->canvasHeight * 0.060;
+        $squarePadding = $this->canvasHeight * 0.025;
+        $labelPadding = $this->canvasHeight * 0.025;
 
         $sliceCount = count($this->slices);
 
-        $legendPadding = 0.075 * $this->width;
+        $legendPadding = 0.075 * $this->canvasWidth;
 
         // Get the width of the legend's widest label.
         $maxLabelWidth = $this->_maxLabelWidth($legendFontSize);
@@ -125,14 +125,14 @@ class PieChart extends Chart
         $legendHeight = $sliceCount * ($squareSize + $squarePadding) - $squarePadding;
 
         // If the legend and its padding occupy too much space, we will not draw it.
-        if ($legendWidth + $legendPadding * 2 > $this->width / 2)  // Too wide.
+        if ($legendWidth + $legendPadding * 2 > $this->canvasWidth / 2)  // Too wide.
             return 0;
 
-        if ($legendHeight > $this->height - $legendOffset - $legendPadding * 2)  // Too high.
+        if ($legendHeight > $this->canvasHeight - $legendOffset - $legendPadding * 2)  // Too high.
             return 0;
 
-        $legendX = $this->width - $legendWidth - $legendPadding;
-        $legendY = ($this->height - $legendOffset) / 2 + $legendOffset - $legendHeight / 2;
+        $legendX = $this->canvasWidth - $legendWidth - $legendPadding;
+        $legendY = ($this->canvasHeight - $legendOffset) / 2 + $legendOffset - $legendHeight / 2;
 
         $labelSettings = new ImagickDraw;
 
@@ -278,7 +278,7 @@ class PieChart extends Chart
         $titleSettings->setGravity(Imagick::GRAVITY_NORTH);
 
         // Determine ideal font size for the title.
-        $titleSize = 0.08 * $this->height;    // The largest sensible value.
+        $titleSize = 0.08 * $this->canvasHeight;    // The largest sensible value.
         $minTitleSize = 10;                   // The smallest legible value.
 
         do {
@@ -289,7 +289,7 @@ class PieChart extends Chart
             $titleWidth = $titleBBox['textWidth'];
 
             // If we can fit the title in, with 5% padding on each side, then we can draw it.
-            if ($titleWidth <= ($this->width * 0.9))
+            if ($titleWidth <= ($this->canvasWidth * 0.9))
                 break;
 
             $titleSize -= 0.5; // Try a smaller font size.
@@ -301,7 +301,7 @@ class PieChart extends Chart
         if ($titleSize < $minTitleSize) return 0;
 
         // Give the title 7.5% top padding.
-        $titleTopPadding = 0.075 * $this->height;
+        $titleTopPadding = 0.075 * $this->canvasHeight;
 
         // Draw the title (centre-top).
         $this->canvas->annotateImage($titleSettings, 0, $titleTopPadding, 0, $this->title);
