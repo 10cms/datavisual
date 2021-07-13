@@ -19,9 +19,13 @@ abstract class Format
         $this->graph = $graph;
     }
 
-    public function response(): int
+    /**
+     * @throws ImagickException
+     */
+    public function response()
     {
-        return print $this->graph->canvas;
+        header("Content-Type: image/$this->type");
+        echo $this->graph->canvas->getImageBlob();
     }
 
     /**

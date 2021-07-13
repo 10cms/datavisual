@@ -1,8 +1,21 @@
 <?php
 require_once "../vendor/autoload.php";
 
+use cms10\DataVisual\Core\Color;
 use cms10\DataVisual\Format\JPEGFormat;
+use cms10\DataVisual\Format\PNGFormat;
 use cms10\DataVisual\Table;
+
+$logBuf = [];
+function exec_time(float $startTime, string $tag = '')
+{
+    global $logBuf;
+    $endTime = microtime(true);
+    $s = sprintf("[$tag] exec time %.3f ms\n", ($endTime - $startTime) * 1000);
+    $logBuf[] = $s;
+    return $endTime;
+}
+$start = microtime(true);
 
 $cols = ['楼层', '姓名', '夜', '休', '白'];
 $row = ['七楼', '护工003', '0', 6, '0'];
@@ -15,6 +28,8 @@ $rows = [];
 for ($r = 1; $r <= 40; $r++) {
     $rows[] = $row;
 }
+
+$start = exec_time($start, 'init data');
 /*$rows = [
     ['七楼', '赵梅兰', '0', '0', '0', '空', '空', '空', '空', '空', '空', '空'],
     ['七楼', '护工003', '0', 6, '0', '空', '空', ['value' => '空', 'font_color' => ''],
@@ -33,11 +48,13 @@ for ($r = 1; $r <= 40; $r++) {
         ['value' => '夜', 'background_color' => 'rgba(34, 51, 84, 0.5)', 'font_color' => 'rgb(34, 51, 84)']
     ]
 ];*/
-$imagePath = '1.jpeg';
+
+
+
 
 $table = new Table(100, 100, [
-    'x' => 10,
-    'y' => 20,
+    'x' => 0,
+    'y' => 0,
     'backcolor' => 0xffffff,
     'tableMargin' => [30],
     'tableBorder' => [5],
@@ -51,14 +68,19 @@ $table = new Table(100, 100, [
 ]);
 
 $table->setColumns($cols);
+$start = exec_time($start, 'init col');
 $table->setRows($rows);
+$start = exec_time($start, 'init row');
+
 
 try {
-    $pic = $table->draw();
+    $tab = $table->draw();
+    $tab->canvas->frameImage((new Color('rgb(220,220,220)'))->toImagickPixel(),11,11,1,10);
+    $start = exec_time($start, 'draw');
 
-    $jpeg = new JPEGFormat($pic);
-    echo $jpeg->save($imagePath);
-//    echo $jpeg->response();
+    $pic = new PNGFormat($tab);
+    echo $pic->save('1.png');
+//    $pic->response();
 } catch (\ImagickException | \ImagickPixelException $e) {
     echo $e->getMessage();
 }

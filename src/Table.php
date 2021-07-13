@@ -4,7 +4,6 @@ namespace cms10\DataVisual;
 
 use cms10\DataVisual\Core\Box;
 use cms10\DataVisual\Core\Color;
-use cms10\DataVisual\Format\JPEGFormat;
 use Imagick;
 use ImagickDraw;
 use ImagickDrawException;
@@ -142,37 +141,50 @@ class Table extends Graph implements TableInterface
     /**
      * @throws ImagickException
      * @throws ImagickDrawException
-     * @throws ImagickPixelException
      */
     public function setRows(array $rows): TableInterface
     {
-        $this->rowDraw->setFillColor($this->rowColor->toImagickPixel());
+        $this->rows = $rows;
+
         $this->rowDraw->setFont($this->rowFont);
         $this->rowDraw->setFontSize($this->rowFontSize);
         $this->rowDraw->setTextAlignment(Imagick::ALIGN_LEFT);
 
-        $this->rows = $rows;
-        foreach ($this->rows as $row) {
-            foreach ($row as $k => $item) {
+        // Gets the longest item for each column
+        $maxSizeSample = [];
+        for ($i = 0; $i < count($this->columns); $i++) {
+            $col = array_column($this->rows, $i);
+            $maxItem = '';
+            $maxSize = 0;
+            foreach ($col as $item) {
                 if (is_array($item)) {
                     $text = $item['value'];
                 } else {
                     $text = $item;
                 }
-                // Measure the text.
-                $metrics = $this->canvas->queryFontMetrics($this->rowDraw, $text);
-
-                if ($this->rowBaseline < $metrics['boundingBox']['y2']) {
-                    $this->rowBaseline = $metrics['boundingBox']['y2'];
-                }
-                if ($this->rowTextHeight < $metrics['textHeight'] + $metrics['descender']) {
-                    $this->rowTextHeight = $metrics['textHeight'] + $metrics['descender'];
+                $size = strlen($text);
+                if ($size > $maxSize) {
+                    $maxSize = $size;
+                    $maxItem = $text;
                 }
 
-                $width = $metrics['textWidth'] + $this->rowPadding->right + $this->rowPadding->left;
-                if (empty($this->columnWidths[$k]) || $this->columnWidths[$k] < $width) {
-                    $this->columnWidths[$k] = $width;
-                }
+            }
+            $maxSizeSample[] = $maxItem;
+        }
+        foreach ($maxSizeSample as $k => $item) {
+            // Measure the text.
+            $metrics = $this->canvas->queryFontMetrics($this->rowDraw, $item);
+
+            if ($this->rowBaseline < $metrics['boundingBox']['y2']) {
+                $this->rowBaseline = $metrics['boundingBox']['y2'];
+            }
+            if ($this->rowTextHeight < $metrics['textHeight'] + $metrics['descender']) {
+                $this->rowTextHeight = $metrics['textHeight'] + $metrics['descender'];
+            }
+
+            $width = $metrics['textWidth'] + $this->rowPadding->right + $this->rowPadding->left;
+            if (empty($this->columnWidths[$k]) || $this->columnWidths[$k] < $width) {
+                $this->columnWidths[$k] = $width;
             }
         }
 
@@ -336,7 +348,8 @@ class Table extends Graph implements TableInterface
                 if (is_array($item)) {
                     $this->_drawItem($x, $y, $item, $this->columnWidths[$k]);
                 } else {
-                    $this->rowDraw->annotation($x + $this->rowPadding->left, $y + $this->rowPadding->top + $this->rowBaseline, $item);
+//                    $this->rowDraw->annotation($x + $this->rowPadding->left, $y + $this->rowPadding->top + $this->rowBaseline, $item);
+                    $this->canvas->annotateImage($this->rowDraw, $x + $this->rowPadding->left, $y + $this->rowPadding->top + $this->rowBaseline, 0, $item);
                 }
                 $x += $this->columnWidths[$k] + $this->verticalLineWidth;
             }
